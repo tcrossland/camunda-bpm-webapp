@@ -21,11 +21,15 @@
     <b:bean id="camundaAuthFilter" class="org.camunda.bpm.webapp.impl.security.auth.AuthenticationFilter" />
 
     <http entry-point-ref="casEntryPoint">
+        <intercept-url pattern="/logout/cas" access="permitAll"/>
         <intercept-url pattern="/login/cas" access="permitAll"/>
         <intercept-url pattern="/login/cas/**" access="permitAll"/>
+        <intercept-url pattern="/cas-logout.jsp" access="permitAll"/>
         <intercept-url pattern="/casfailed.jsp" access="permitAll"/>
 
         <intercept-url pattern="/**" access="isAuthenticated()"/>
+        <custom-filter ref="requestSingleLogoutFilter" before="LOGOUT_FILTER"/>
+        <custom-filter ref="singleLogoutFilter" before="CAS_FILTER"/>
         <custom-filter ref="casFilter" position="CAS_FILTER"/>
         <csrf disabled="true"/>
     </http>
@@ -59,6 +63,17 @@
 
     <b:bean id="casEntryPoint" class="org.springframework.security.cas.web.CasAuthenticationEntryPoint"
             p:serviceProperties-ref="serviceProperties" p:loginUrl="https://${cas.server.host}/cas/login"/>
+
+    <!-- This filter handles a Single Logout Request from the CAS Server -->
+    <b:bean id="singleLogoutFilter" class="org.jasig.cas.client.session.SingleSignOutFilter"/>
+    <!-- This filter redirects to the CAS Server to signal Single Logout should be performed -->
+    <b:bean id="requestSingleLogoutFilter" class="org.springframework.security.web.authentication.logout.LogoutFilter"
+            p:filterProcessesUrl="/logout/cas">
+        <b:constructor-arg value="https://${cas.server.host}/cas/logout"/>
+        <b:constructor-arg>
+            <b:bean class="org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler"/>
+        </b:constructor-arg>
+    </b:bean>
 
     <b:bean id="casFilter" class="org.springframework.security.cas.web.CasAuthenticationFilter"
             p:authenticationManager-ref="authManager"
