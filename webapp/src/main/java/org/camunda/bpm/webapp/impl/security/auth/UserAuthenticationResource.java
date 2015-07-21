@@ -38,6 +38,9 @@ import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.spi.ProcessEngineProvider;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 
 /**
  * Jax-Rs resource allowing users to authenticate with username and password</p>
@@ -54,6 +57,8 @@ public class UserAuthenticationResource {
 
   @Context
   protected HttpServletRequest request;
+
+  protected LogoutHandler logoutHandler = new SecurityContextLogoutHandler();
 
   @GET
   @Path("/{processEngineName}")
@@ -149,7 +154,8 @@ public class UserAuthenticationResource {
 
     // remove authentication for process engine
     authentications.removeAuthenticationForProcessEngine(engineName);
-
+    logoutHandler.logout(request, null, null);
+    SecurityContextHolder.clearContext();
     return Response.ok().build();
   }
 
