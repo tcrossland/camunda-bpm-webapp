@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<b:beans xmlns:b="http://www.springframework.org/schema/beans"
+         xmlns="http://www.springframework.org/schema/security"
+         xmlns:p="http://www.springframework.org/schema/p"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns:context="http://www.springframework.org/schema/context"
+         xmlns:util="http://www.springframework.org/schema/util"
+         xsi:schemaLocation="http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.0.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+    <b:bean id="filterChainProxy" class="org.springframework.security.web.FilterChainProxy">
+        <b:constructor-arg>
+            <b:list>
+                <filter-chain pattern="/**" filters="casFilter" />
+            </b:list>
+        </b:constructor-arg>
+    </b:bean>
+
+    <b:bean id="camundaAuthFilter" class="org.camunda.bpm.webapp.impl.security.auth.AuthenticationFilter" />
+
+    <http entry-point-ref="casEntryPoint">
+        <intercept-url pattern="/login/cas" access="permitAll"/>
+        <intercept-url pattern="/login/cas/**" access="permitAll"/>
+        <intercept-url pattern="/casfailed.jsp" access="permitAll"/>
+
+        <intercept-url pattern="/**" access="isAuthenticated()"/>
+        <custom-filter ref="casFilter" position="CAS_FILTER"/>
+        <csrf disabled="true"/>
+    </http>
+
+    <authentication-manager alias="authManager">
+        <authentication-provider ref="casAuthProvider"/>
+    </authentication-manager>
+
+    <ldap-user-service id="userService" server-ref="ldapServer" user-search-base="ou=people,dc=bluetab,dc=net" user-search-filter="cn={0}" group-search-base="ou=groups,dc=bluetab,dc=net" />
+
+    <ldap-server id="ldapServer" url="ldaps://ldap.bluetab.net" port="636" root="dc=bluetab,dc=net" />
+
+    <b:bean id="contextSource" class="org.springframework.security.ldap.DefaultSpringSecurityContextSource">
+        <b:constructor-arg value="ldaps://ldap.bluetab.net"/>
+    </b:bean>
+
+    <b:bean id="serviceProperties"
+            class="org.springframework.security.cas.ServiceProperties"
+            p:service="https://${cas.service.host}/camtest/login/cas"
+            p:authenticateAllArtifacts="true"/>
+
+    <b:bean id="authenticationSuccessHandler" class="org.camunda.bpm.webapp.impl.security.auth.AuthenticationSuccessListener">
+        <b:property name="applications">
+            <b:list>
+                <b:value>cockpit</b:value>
+                <b:value>tasklist</b:value>
+                <b:value>admin</b:value>
+            </b:list>
+        </b:property>
+    </b:bean>
+
+    <b:bean id="casEntryPoint" class="org.springframework.security.cas.web.CasAuthenticationEntryPoint"
+            p:serviceProperties-ref="serviceProperties" p:loginUrl="https://${cas.server.host}/cas/login"/>
+
+    <b:bean id="casFilter" class="org.springframework.security.cas.web.CasAuthenticationFilter"
+            p:authenticationManager-ref="authManager"
+            p:serviceProperties-ref="serviceProperties"
+            p:proxyGrantingTicketStorage-ref="pgtStorage"
+            p:proxyReceptorUrl="/login/cas/proxyreceptor">
+        <b:property name="authenticationDetailsSource">
+            <b:bean class="org.springframework.security.cas.web.authentication.ServiceAuthenticationDetailsSource">
+                <b:constructor-arg ref="serviceProperties"/>
+            </b:bean>
+        </b:property>
+        <b:property name="authenticationFailureHandler">
+            <b:bean class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler"
+                    p:defaultFailureUrl="/casfailed.jsp"/>
+        </b:property>
+    </b:bean>
+
+    <!--
+        NOTE: In a real application you should not use an in memory implementation. You will also want
+              to ensure to clean up expired tickets by calling ProxyGrantingTicketStorage.cleanup()
+     -->
+    <b:bean id="pgtStorage" class="org.jasig.cas.client.proxy.ProxyGrantingTicketStorageImpl"/>
+    <b:bean id="casAuthProvider" class="org.springframework.security.cas.authentication.CasAuthenticationProvider"
+            p:serviceProperties-ref="serviceProperties"
+            p:key="casAuthProviderKey">
+        <b:property name="authenticationUserDetailsService">
+            <b:bean class="org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper">
+                <b:constructor-arg ref="userService"/>
+            </b:bean>
+        </b:property>
+        <b:property name="ticketValidator">
+            <b:bean class="org.jasig.cas.client.validation.Cas20ProxyTicketValidator"
+                    p:acceptAnyProxy="true"
+                    p:proxyCallbackUrl="https://${cas.service.host}/camtest/login/cas/proxyreceptor"
+                    p:proxyGrantingTicketStorage-ref="pgtStorage">
+                <b:constructor-arg value="https://${cas.server.host}/cas"/>
+            </b:bean>
+        </b:property>
+        <b:property name="statelessTicketCache">
+            <b:bean class="org.springframework.security.cas.authentication.EhCacheBasedTicketCache">
+                <b:property name="cache">
+                    <b:bean id="ehcache" class="net.sf.ehcache.Cache"
+                            init-method="initialise"
+                            destroy-method="dispose">
+                        <b:constructor-arg value="casTickets"/>
+                        <b:constructor-arg value="50"/>
+                        <b:constructor-arg value="true"/>
+                        <b:constructor-arg value="false"/>
+                        <b:constructor-arg value="3600"/>
+                        <b:constructor-arg value="900"/>
+                        <b:property name="cacheManager">
+                            <b:bean class="org.springframework.cache.ehcache.EhCacheManagerFactoryBean"/>
+                        </b:property>
+                    </b:bean>
+                </b:property>
+            </b:bean>
+        </b:property>
+    </b:bean>
+
+    <!-- Configuration for the environment can be overriden by system properties -->
+    <context:property-placeholder system-properties-mode="OVERRIDE" properties-ref="environment"/>
+    <util:properties id="environment">
+        <b:prop key="cas.service.host">projects.bluetab.net</b:prop>
+        <b:prop key="cas.server.host">projects.bluetab.net</b:prop>
+    </util:properties>
+</b:beans>
