@@ -32,6 +32,7 @@
   </listener>
 
   <!-- Authentication filter -->
+  <!--
   <filter>
     <filter-name>Authentication Filter</filter-name>
     <filter-class>org.camunda.bpm.webapp.impl.security.auth.AuthenticationFilter</filter-class>
@@ -41,6 +42,7 @@
     <url-pattern>/*</url-pattern>
     <dispatcher>REQUEST</dispatcher>
   </filter-mapping>
+  -->
   <filter>
     <filter-name>springSecurityFilterChain</filter-name>
     <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>

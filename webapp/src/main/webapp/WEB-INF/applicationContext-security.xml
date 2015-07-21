@@ -30,6 +30,7 @@
 
         <intercept-url pattern="/**" access="isAuthenticated()"/>
         <custom-filter ref="requestSingleLogoutFilter" before="LOGOUT_FILTER"/>
+        <custom-filter ref="camundaAuthFilter" before="PRE_AUTH_FILTER"/>
         <custom-filter ref="singleLogoutFilter" before="CAS_FILTER"/>
         <custom-filter ref="casFilter" position="CAS_FILTER"/>
         <logout logout-success-url="/cas-logout.jsp"/>
